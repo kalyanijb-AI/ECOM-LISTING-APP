@@ -1,0 +1,523 @@
+================================================================
+REPLIT BUILD PROMPT: AI PRODUCT AUDIT FOR TALAHI COLLECTIONS
+================================================================
+
+Build a full-stack AI-powered product listing generator called "AI Product Audit" for the
+brand Talahi Collections (talahicollections.com). The app analyzes uploaded product images
+using OpenAI GPT vision to generate comprehensive, Shopify-compliant product listings. Products
+can be published directly to a Shopify store, and the app maximizes AI search engine
+discoverability (ChatGPT Shopping, Google AI, Perplexity).
+
+================================================================
+TECH STACK
+================================================================
+
+Frontend:
+- React + Vite
+- TailwindCSS
+- shadcn/ui component library
+- @tanstack/react-query for data fetching
+- wouter for client-side routing
+
+Backend:
+- Express.js with TypeScript
+- multer for file uploads (product images)
+- Drizzle ORM with drizzle-zod
+- PostgreSQL database (Replit built-in)
+
+AI:
+- OpenAI GPT vision (model: gpt-4o or latest vision-capable model)
+- Use Replit AI Integrations — no API key needed, use the built-in integration
+- Import as: import OpenAI from "openai"; (configured via Replit integration)
+
+Deploy on Replit, port 5000 for both backend and frontend (Vite proxied through Express).
+
+================================================================
+BRAND RULES (CRITICAL)
+================================================================
+
+- Store brand: Talahi Collections
+- Store domain: https://talahicollections.com (Shopify store)
+- ALL AI-generated content must use "Talahi Collections" as the brand name
+- NEVER use third-party supplier brand names (e.g., "Shenori") in any generated content
+- NEVER use emojis anywhere in the app or generated content
+- Product categories: Indian ethnic wear (sarees, lehengas) and jewelry (necklace sets, earrings)
+
+================================================================
+ENVIRONMENT SECRETS REQUIRED
+================================================================
+
+Set these in Replit Secrets:
+- SESSION_SECRET       — for Express session middleware
+- SHOPIFY_ACCESS_TOKEN — Shopify Admin API access token (for custom app / private app)
+- SHOPIFY_CLIENT_ID    — Shopify OAuth app client ID
+- SHOPIFY_CLIENT_SECRET — Shopify OAuth app client secret
+- SHOPIFY_STORE_URL    — e.g., "your-store.myshopify.com" (no https://)
+
+================================================================
+DATABASE SCHEMA (shared/schema.ts)
+================================================================
+
+Products table (all fields):
+- id                serial PRIMARY KEY
+- title             text NOT NULL
+- description       text NOT NULL
+- packaging         text NOT NULL
+- handling          text NOT NULL (handling instructions)
+- returnPolicy      text NOT NULL
+- metaTitle         text NOT NULL
+- metaDescription   text NOT NULL
+- tags              text[] NOT NULL DEFAULT []
+- imageUrl          text            (uploaded image path, e.g. /uploads/...)
+- additionalImages  text[] DEFAULT []
+- shopifyProductId  text            (set after publishing to Shopify; NULL if not published)
+- createdAt         timestamp DEFAULT now()
+
+Create insert schema with drizzle-zod, omitting id and createdAt.
+
+================================================================
+AI IMAGE ANALYSIS PROMPT
+================================================================
+
+When generating product details from an uploaded image, instruct the AI:
+
+1. Title: Concise, keyword-rich product title (max 255 chars). Include "Talahi Collections" brand.
+   Format: "[Descriptive Product Name] - [Category]"
+
+2. Description: Detailed product description (max 5000 chars). Use bullet points.
+   Include: what it is, design details, materials/colors, occasion, style keywords, value prop.
+   Always brand as Talahi Collections. Never use competitor/supplier brand names. No emojis.
+
+3. Packaging: Packaging details (how it ships/arrives). Use bullet points.
+
+4. Handling Instructions: Care and handling info. Use bullet points.
+
+5. Return Policy: Return/refund policy text. Use bullet points.
+
+6. Meta Title: SEO title for the product page (max 70 chars). Keyword-rich.
+
+7. Meta Description: SEO description (max 320 chars). Compelling, include CTA.
+
+8. Tags: Array of 10-15 relevant keyword tags (max 40 chars each). No duplicates.
+
+Temperature: 0.8 for descriptions, 0.7 for structured fields.
+
+================================================================
+SHOPIFY CHARACTER LIMITS
+================================================================
+
+- title: 255 chars
+- description: 5000 chars
+- metaTitle: 70 chars
+- metaDescription: 320 chars
+- tags: 40 chars each, max 250 total tags
+
+Enforce these limits client-side with color-coded character count indicators:
+- Green: under 80% of limit
+- Yellow/amber: 80-95% of limit
+- Red: over limit
+
+================================================================
+CORE FEATURES
+================================================================
+
+--- PRODUCT CREATION ---
+- Drag & drop or file browse image upload (supports multiple images)
+- First image is sent to OpenAI for analysis
+- Additional images are stored alongside the product and pushed to Shopify
+- AI analyzes image and auto-generates all product fields
+- Show loading state with animated progress bar during AI generation
+
+--- PRODUCT LIST VIEW ---
+- Grid layout (4 columns on large screens)
+- Product cards show: image, title, tags, Shopify published badge
+- Sync status indicator: show if Shopify product is synced or out of sync
+- Bulk select mode: checkboxes on cards; "Select All" / "Deselect All"
+- Batch publish: select multiple products → publish all to Shopify at once (max 10)
+- Delete products
+
+--- PRODUCT DETAIL VIEW (tabbed) ---
+All 4 tabs must be inline-editable before publishing:
+
+Tab 1 - Details:
+  - Title (editable)
+  - Description (editable, textarea)
+
+Tab 2 - Policies:
+  - Packaging (editable, textarea)
+  - Handling Instructions (editable, textarea)
+  - Return Policy (editable, textarea)
+
+Tab 3 - SEO:
+  - Meta Title (editable, with char count)
+  - Meta Description (editable, textarea, with char count)
+
+Tab 4 - Tags:
+  - Tags list with add/remove functionality
+  - Each tag editable inline
+
+EditableField component: shows value by default, click pencil icon to edit,
+shows Save/Cancel buttons when editing. Show unsaved changes banner with Save All / Discard.
+
+Copy button on each field to copy value to clipboard.
+
+--- SHOPIFY PUBLISHING ---
+- "Publish to Shopify" button on product detail (publishes as draft)
+- "Republish" button to update existing Shopify product with latest data
+- Shows Shopify product ID and published badge after publishing
+- Publishes: title, description (as HTML body), tags, images (first + additional)
+- Sets vendor to "Talahi Collections"
+- Batch publish: from list view, select multiple → publish all at once
+
+--- SHOPIFY IMPORT ---
+- "Import from Shopify" button in toolbar (only when Shopify connected)
+- Fetches all products from connected Shopify store
+- Shows product list with images and titles
+- Import single product: fetches Shopify product data + images, runs through AI to generate
+  optimized title/description/packaging/handling/returnPolicy/metaTitle/metaDescription/tags
+- Bulk import: select up to 10 Shopify products → batch AI optimization
+
+--- SHOPIFY OAUTH ---
+- OAuth flow for connecting Shopify store
+- "Connect Shopify" / "Disconnect Shopify" buttons in toolbar
+- Store connection status badge showing store domain
+- Session-based auth with SESSION_SECRET
+
+--- INLINE EDITING ---
+- All product fields editable in detail view before publishing
+- EditableField component with pencil icon to activate edit mode
+- Unsaved changes banner: "You have unsaved changes" with Save All / Discard buttons
+- PATCH /api/products/:id endpoint for saving
+
+--- SOCIAL SHARE & EXPORT ---
+Product card image generation (1080x1080 PNG):
+- Uses canvas API or html2canvas
+- Shows product image + title + brand + tags
+
+Product video generation (1080x1920 WebM slideshow):
+- Shows product images as slideshow with title overlay
+
+WhatsApp sharing:
+- Pre-formatted message with product title, description excerpt, tags, and Shopify URL
+- Opens WhatsApp web share link
+
+Instagram sharing:
+- Copies optimized caption with hashtags to clipboard
+- Download button for card image / video
+
+================================================================
+AI DISCOVERABILITY INFRASTRUCTURE
+================================================================
+
+All of these endpoints should be publicly accessible (no auth required):
+
+--- CHATGPT MERCHANT FEEDS ---
+GET /chatgpt-feed.json
+  Returns JSON feed in OpenAI merchant spec format:
+  {
+    feed_version: "1.0",
+    store: { name, url, description },
+    products: [
+      {
+        id: shopifyProductId or "PROD-{id}",
+        title,
+        description,
+        link: shopifyUrl or store URL,
+        image_link,
+        additional_image_link,
+        price: "XX.XX USD",        (from Shopify variant API)
+        availability: "in_stock" | "out_of_stock",
+        brand: "Talahi Collections",
+        product_category,
+        enable_search: true,
+        enable_checkout: false,
+        return_policy,
+        shipping: "US shipping available",
+        tags
+      }
+    ]
+  }
+  Cache Shopify price/inventory data for 10 minutes.
+
+GET /chatgpt-feed.csv
+  Same data as /chatgpt-feed.json but as downloadable CSV.
+  Content-Disposition: attachment; filename=talahi-collections-chatgpt-feed.csv
+  Headers: id, title, description, link, image_link, additional_image_link, price,
+           availability, brand, product_category, enable_search, enable_checkout,
+           return_policy, shipping, tags
+
+--- LLM CRAWLER FILES ---
+GET /llms.txt
+  Structured markdown file following llms.txt spec:
+  - Store info (brand, URL, location, currency, shipping)
+  - Product categories with counts
+  - How to buy section
+  - Full product list with prices and Shopify URLs
+  - Links to all feeds
+
+GET /llms-full.txt
+  Complete product details for each product:
+  - Brand, URL, Buy Now link, Price, Availability, Category, Image
+  - Full description, packaging, handling, return policy, tags
+  - About section with pricing range and purchase methods
+
+--- STANDARD FEEDS ---
+GET /feed.json     — JSON Feed 1.1 format
+GET /feed.xml      — RSS 2.0 format
+GET /sitemap.xml   — XML sitemap with all product URLs + images
+GET /robots.txt    — Allow all AI crawlers (GPTBot, ChatGPT-User, OAI-SearchBot,
+                     Google-Extended, PerplexityBot, CCBot, anthropic-ai, etc.)
+
+--- AI PLUGIN / OPENAPI ---
+GET /.well-known/ai-plugin.json   — ChatGPT Actions plugin manifest
+GET /.well-known/openapi.yaml     — OpenAPI 3.0 spec for product search API
+
+--- SERVER-RENDERED PRODUCT PAGES ---
+GET /product/:id
+  Full HTML page with:
+  - Meta tags (title, description, keywords, canonical)
+  - Open Graph tags including product:price:amount and product:price:currency
+  - Schema.org Product JSON-LD with complete Offers object:
+    {
+      "@type": "Offer",
+      price: from Shopify,
+      priceCurrency: "USD",
+      availability: "https://schema.org/InStock",
+      seller: { name: "Talahi Collections", url: "https://talahicollections.com" },
+      shippingDetails: { ... addressCountry: "US" },
+      hasMerchantReturnPolicy: { description: returnPolicy }
+    }
+  - FAQPage JSON-LD with 5 questions (what is it, packaging, handling, return policy, where to buy)
+  - Organization JSON-LD for Talahi Collections
+  - Brand in Product schema: { "@type": "Brand", name: "Talahi Collections" }
+
+GET /products
+  Server-rendered product listing page with:
+  - ItemList JSON-LD
+  - All product cards linking to /product/:id
+  - Title: "Talahi Collections - Browse All Products | Indian Sarees, Lehengas & Jewelry"
+
+--- SHOPIFY PRICE CACHE ---
+getShopifyProductDataMap() function:
+  - Fetches all product variants from Shopify Admin API
+  - Returns map: shopifyProductId → { price, compareAtPrice, currency, availability, inventoryQuantity }
+  - Cache TTL: 10 minutes
+  - Used by: /chatgpt-feed.json, /chatgpt-feed.csv, /llms.txt, /llms-full.txt, /product/:id
+
+--- SHOPIFY HANDLE CACHE ---
+getShopifyHandleMap() function:
+  - Fetches all product handles from Shopify Admin API
+  - Returns map: shopifyProductId → handle (used to build talahicollections.com/products/{handle} URLs)
+  - Cache TTL: 10 minutes
+  - Supports pagination (250+ products)
+
+================================================================
+AI SHOPPING ASSISTANT CHAT WIDGET
+================================================================
+
+Floating chat widget (bottom-right corner) that customers can use to find products
+through conversation.
+
+POST /api/chat
+  - Accepts: { message: string, conversationHistory: Message[] }
+  - Uses OpenAI with product context (all products from DB)
+  - Temperature: 0.7
+  - Returns: { message: string, products: Product[] } (recommended products)
+
+Features:
+- Minimize/maximize toggle
+- Shows typing indicator while waiting for AI
+- Displays recommended product cards in chat
+- Clicking a product card navigates to that product's detail view
+
+Embeddable widget for Shopify stores:
+GET /embed/chat-widget.js
+  - Standalone JavaScript file that can be added to any Shopify store
+  - Single script tag integration: <script src="https://your-app.replit.app/embed/chat-widget.js"></script>
+  - Injects floating chat button into the store
+
+"Embed Chat" button in toolbar shows the embed code snippet.
+
+================================================================
+ANALYTICS
+================================================================
+
+Track visits to public/crawler endpoints:
+- Log: endpoint, timestamp, user agent, IP, referrer, search query (for /api/products/search)
+- analytics_events table in DB: id, endpoint, method, userAgent, ipAddress, referrer, query, createdAt
+
+GET /api/analytics/summary?days=30
+  Returns: summary stats, daily timeline, top endpoints, crawler visits, search queries
+
+GET /analytics route in frontend shows analytics dashboard.
+
+================================================================
+API ENDPOINTS
+================================================================
+
+Products:
+  GET  /api/products                    — List all products
+  GET  /api/products/search?q=query    — Search products by keyword
+  GET  /api/products/:id               — Get single product
+  GET  /api/products/:id/schema        — Schema.org JSON-LD for product
+  PATCH /api/products/:id              — Update product fields
+  DELETE /api/products/:id             — Delete product
+  POST /api/products/generate          — Upload image + generate (multipart/form-data, field: "images")
+
+Shopify:
+  POST /api/products/:id/publish-shopify     — Publish to Shopify as draft (?force=true to republish)
+  POST /api/products/batch-publish-shopify   — Batch publish (body: { ids: number[] })
+  POST /api/shopify/import/:shopifyId        — Import Shopify product + AI optimize
+  POST /api/shopify/batch-import             — Batch import (body: { shopifyIds: string[] }, max 10)
+  GET  /api/shopify/products                 — Fetch all Shopify store products
+  GET  /api/shopify/auth                     — Start OAuth flow
+  GET  /api/shopify/callback                 — OAuth callback
+  DELETE /api/shopify/disconnect             — Disconnect store
+  GET  /api/shopify-status                   — Check connection status
+  GET  /api/shopify-limits                   — Character limits
+
+Chat:
+  POST /api/chat                            — AI shopping assistant
+
+Analytics:
+  GET  /api/analytics/summary?days=N        — Analytics summary
+
+Feeds & Discoverability:
+  GET /chatgpt-feed.json
+  GET /chatgpt-feed.csv
+  GET /feed.json
+  GET /feed.xml
+  GET /sitemap.xml
+  GET /robots.txt
+  GET /llms.txt
+  GET /llms-full.txt
+  GET /.well-known/ai-plugin.json
+  GET /.well-known/openapi.yaml
+  GET /product/:id                          — SSR product page
+  GET /products                             — SSR product listing
+
+================================================================
+UI VIEWS & NAVIGATION
+================================================================
+
+The app is a single-page React app with a view state variable:
+  type View = "list" | "create" | "detail" | "import"
+
+List view (default):
+  - Header: "AI Product Audit" title with package icon
+  - Toolbar buttons: AI Feeds, Analytics, Embed Chat, Import from Shopify, New Product
+  - Shopify connection status badge
+  - Product grid with bulk select
+  - Batch publish button when products are selected
+
+Create view:
+  - Back button
+  - Image upload area (drag & drop or browse)
+  - "Generate Product Details with AI" button
+  - Loading state with animated progress
+
+Detail view:
+  - Back button
+  - Publish / Republish to Shopify button
+  - Delete button
+  - Unsaved changes banner (when edits pending)
+  - Product image gallery (main + additional images thumbnails)
+  - Social share section (Generate Card, Generate Video, WhatsApp, Instagram)
+  - Tabbed content: Details, Policies, SEO, Tags (all editable)
+
+Import view:
+  - Back button
+  - Shopify product grid with checkboxes
+  - Bulk import button (max 10)
+  - Individual import buttons
+  - Progress tracking for batch imports
+
+AI Feeds dialog (modal):
+  - ChatGPT Merchant Feeds: links to /chatgpt-feed.json and /chatgpt-feed.csv
+  - LLM Crawler Files: links to /llms.txt and /llms-full.txt
+  - Standard Feeds: links to /feed.json and /feed.xml
+
+================================================================
+STORAGE INTERFACE (server/storage.ts)
+================================================================
+
+IStorage interface methods:
+  getProducts(): Promise<Product[]>
+  getProduct(id: number): Promise<Product | undefined>
+  createProduct(product: InsertProduct): Promise<Product>
+  updateProduct(id: number, updates: Partial<InsertProduct>): Promise<Product | undefined>
+  deleteProduct(id: number): Promise<void>
+  searchProducts(query: string): Promise<Product[]>
+  getAnalyticsSummary(start: Date, end: Date): Promise<any>
+  getAnalyticsTimeline(start: Date, end: Date): Promise<any>
+  getTopEndpoints(start: Date, end: Date): Promise<any>
+  getCrawlerVisits(start: Date, end: Date): Promise<any>
+  getSearchQueries(start: Date, end: Date): Promise<any>
+  trackEvent(event: InsertAnalyticsEvent): Promise<void>
+
+Use DatabaseStorage class implementing IStorage with Drizzle ORM.
+
+================================================================
+FILE STRUCTURE
+================================================================
+
+project/
+  client/
+    src/
+      pages/
+        home.tsx        — Main page (all views + chat widget)
+        analytics.tsx   — Analytics dashboard
+      App.tsx           — Root with routing
+      main.tsx
+  server/
+    routes.ts           — All API endpoints
+    ssr-pages.ts        — Server-rendered product pages (/product/:id, /products)
+    storage.ts          — Database storage interface
+    db.ts               — Drizzle database connection
+    seed.ts             — Initial seed data
+    vite.ts             — Vite dev server setup (do not modify)
+  shared/
+    schema.ts           — Drizzle schema + Zod types
+  uploads/              — Uploaded product images (served statically at /uploads)
+  drizzle.config.ts
+  vite.config.ts
+  package.json
+
+================================================================
+IMPORTANT IMPLEMENTATION NOTES
+================================================================
+
+1. Image uploads: Use multer, store in /uploads directory, serve statically.
+   Allow up to 10 images per product (1 primary + 9 additional).
+
+2. Shopify API version: 2025-01
+
+3. Shopify publish: create product with status "draft", include all images as
+   { src: absoluteImageUrl } array. Set vendor to "Talahi Collections".
+
+4. AI generation: encode image as base64 and pass to OpenAI vision endpoint.
+   Parse response as JSON with fields: title, description, packaging, handling,
+   returnPolicy, metaTitle, metaDescription, tags.
+
+5. Session management: use express-session with SESSION_SECRET for Shopify OAuth state.
+
+6. Caching: both Shopify handle map and price/inventory map use in-memory cache
+   with 10-minute TTL. Cache is reset on server restart.
+
+7. SSR pages (/product/:id, /products): these are registered AFTER the Vite middleware
+   in development so they take precedence. Pass the price cache function to the SSR
+   page renderer.
+
+8. Character count indicators: use conditional className to show green/amber/red
+   based on percentage of limit used.
+
+9. All product URLs in feeds point to talahicollections.com/products/{handle}
+   when available, falling back to the app's /product/:id URL.
+
+10. robots.txt: allow all major AI crawlers explicitly:
+    GPTBot, ChatGPT-User, OAI-SearchBot, anthropic-ai, Claude-Web,
+    PerplexityBot, Google-Extended, Googlebot, Bingbot, CCBot
+
+================================================================
+END OF PROMPT
+================================================================
